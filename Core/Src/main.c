@@ -32,6 +32,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -45,8 +46,12 @@ DMA_HandleTypeDef hdma_usart2_rx;
 DMA_HandleTypeDef hdma_usart2_tx;
 
 /* USER CODE BEGIN PV */
+const uint16_t LONG_SIGN = 500;
+const uint16_t SHORT_SIGN = 200;
+const uint16_t DELAY = 100;
+
 const uint8_t buff_size = 100;
-uint8_t bufferTx[buff_size] = "Hello there";
+uint8_t encode_flag = 1;				// Initialize in encode mode
 uint8_t overflow[buff_size] = "Overflow has occurred\n\n\r";
 uint8_t bufferRx[buff_size];		// Reads one byte at a time from UART input
 int rx_index = 0;
@@ -62,7 +67,10 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
+void toggle_LED(void);
+void encode(uint8_t* msg);
 
+void signal(uint16_t waitTime);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -109,6 +117,7 @@ int main(void)
   while (1)
   {
 		HAL_UART_Receive_IT(&huart2, bufferRx, buff_size);
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, encode_flag^1);
 		
 		while (rx_flag == 0) {
 			// do nothing
@@ -117,11 +126,14 @@ int main(void)
 		if (rx_flag == 1) {
 			rx_flag = 0;
 			if (rx_char == '\n' || rx_char == '\r') {
-				HAL_UART_Transmit(&huart2, bufferRx, buff_size, 100);
-				if (strcmp(bufferRx, "on") == 0)
-					HAL_GPIO_WritePin(GPIOA, Green_LED_LD2_Pin, 1);
-				if (strcmp(bufferRx, "off") == 0)
-					HAL_GPIO_WritePin(GPIOA, Green_LED_LD2_Pin, 0);
+				// If encode: encode()
+				if (encode_flag == 1) {
+					encode(bufferRx);
+					rx_index = 0;
+					memset(bufferRx, 0, buff_size);
+				} else {
+					toggle_LED();
+				}
 				
 				memset(bufferRx, 0, buff_size);
 				rx_index = 0;
@@ -270,6 +282,9 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(Green_LED_LD2_GPIO_Port, Green_LED_LD2_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET);
+
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
@@ -289,6 +304,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : PC7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_7;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
@@ -300,11 +322,366 @@ static void MX_GPIO_Init(void)
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
   if (GPIO_Pin == B1_Pin) {
-		HAL_UART_Transmit(&huart2, bufferTx, buff_size, 100);
-		HAL_UART_Transmit(&huart2, buff, 6, 100);
+		encode_flag = encode_flag ^ 1;
 	}
 	else
 		__nop();
+}
+
+// Toggle LED routine
+void toggle_LED(void) {
+	HAL_UART_Transmit(&huart2, bufferRx, buff_size, 100);
+	if (strcmp(bufferRx, "on") == 0)
+		HAL_GPIO_WritePin(GPIOA, Green_LED_LD2_Pin, 1);
+	if (strcmp(bufferRx, "off") == 0)
+		HAL_GPIO_WritePin(GPIOA, Green_LED_LD2_Pin, 0);
+}
+
+// Function call for a signal - pass the long and short wait times as parameters and do a delay after finished signal
+void signal(uint16_t waitTIme) {
+	HAL_GPIO_WritePin(GPIOA, Green_LED_LD2_Pin, 0);
+	HAL_GPIO_WritePin(GPIOA, Green_LED_LD2_Pin, 1);
+	HAL_Delay(waitTIme);
+	HAL_GPIO_WritePin(GPIOA, Green_LED_LD2_Pin, 0);
+	HAL_Delay(DELAY);
+}
+
+
+// Takes a pointer to msg buffer and will blink the message on green LED in morse code
+void encode(uint8_t *msg) {
+	char toCode;
+	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, 0);
+	for (int i = 0; i < rx_index; i++) {
+		toCode = (char) *(msg+i);
+		
+		switch(toCode) {
+			case 'A':
+			case 'a':
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				break;
+			
+			case 'B':
+			case 'b':
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case 'C':
+			case 'c':
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case 'D':
+			case 'd':
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case 'E':
+			case 'e':
+				signal(SHORT_SIGN);
+				break;
+			
+			case 'F':
+			case 'f':
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case 'G':
+			case 'g':
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case 'H':
+			case 'h':
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case 'I':
+			case 'i':
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case 'J':
+			case 'j':
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				break;
+			
+			case 'K':
+			case 'k':
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				break;
+			
+			case 'L':
+			case 'l':
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case 'M':
+			case 'm':
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				break;
+			
+			case 'N':
+			case 'n':
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case 'O':
+			case 'o':
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				break;
+			
+			case 'P':
+			case 'p':
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case 'Q':
+			case 'q':
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				break;
+			
+			case 'R':
+			case 'r':
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case 'S':
+			case 's':
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case 'T':
+			case 't':
+				signal(LONG_SIGN);
+				break;
+			
+			case 'U':
+			case 'u':
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				break;
+			
+			case 'V':
+			case 'v':
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				break;
+			
+			case 'W':
+			case 'w':
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				break;
+			
+			case 'X':
+			case 'x':
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				break;
+			
+			case 'Y':
+			case 'y':
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				break;
+			
+			case 'Z':
+			case 'z':
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case '0':
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				break;
+			
+			case '1':
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				break;
+			
+			case '2':
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				break;
+			
+			case '3':
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				break;
+			
+			case '4':
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				break;
+			
+			case '5':
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case '6':
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case '7':
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case '8':
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case '9':
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case '.':
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case ',':
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				break;
+			
+			case ';':
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case ':':
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case '?':
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				break;
+			
+			case '!':
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				signal(SHORT_SIGN);
+				signal(SHORT_SIGN);
+				signal(LONG_SIGN);
+				signal(LONG_SIGN);
+				break;
+			
+			default:
+				HAL_GPIO_WritePin(GPIOA, Green_LED_LD2_Pin, 0);
+				HAL_Delay(1000);
+		}
+	}
+	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, 1);
+	HAL_Delay(1000);
+	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, 0);
 }
 
 /* USER CODE END 4 */
