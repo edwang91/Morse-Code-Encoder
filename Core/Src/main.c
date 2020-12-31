@@ -117,7 +117,6 @@ int main(void)
   while (1)
   {
 		HAL_UART_Receive_IT(&huart2, bufferRx, buff_size);
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, encode_flag^1);
 		
 		while (rx_flag == 0) {
 			// do nothing
@@ -126,17 +125,15 @@ int main(void)
 		if (rx_flag == 1) {
 			rx_flag = 0;
 			if (rx_char == '\n' || rx_char == '\r') {
-				// If encode: encode()
+				// From the previous message, set all the unused spaces to 0 after the last-updated element
+				memset(bufferRx+rx_index, 0, buff_size-rx_index);		
 				if (encode_flag == 1) {
 					encode(bufferRx);
 					rx_index = 0;
-					memset(bufferRx, 0, buff_size);
+					//memset(bufferRx, 0, buff_size);
 				} else {
 					toggle_LED();
 				}
-				
-				memset(bufferRx, 0, buff_size);
-				rx_index = 0;
 				HAL_UART_Transmit(&huart2, buff, 6, 100);
 			} else {
 				if (rx_index >= buff_size) {
@@ -323,6 +320,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
   if (GPIO_Pin == B1_Pin) {
 		encode_flag = encode_flag ^ 1;
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, encode_flag^1);
 	}
 	else
 		__nop();
@@ -335,6 +333,8 @@ void toggle_LED(void) {
 		HAL_GPIO_WritePin(GPIOA, Green_LED_LD2_Pin, 1);
 	if (strcmp(bufferRx, "off") == 0)
 		HAL_GPIO_WritePin(GPIOA, Green_LED_LD2_Pin, 0);
+	memset(bufferRx, 0, buff_size);
+	rx_index = 0;
 }
 
 // Function call for a signal - pass the long and short wait times as parameters and do a delay after finished signal
@@ -351,6 +351,7 @@ void signal(uint16_t waitTIme) {
 void encode(uint8_t *msg) {
 	char toCode;
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, 0);
+	HAL_UART_Transmit(&huart2, bufferRx, buff_size, 100);
 	for (int i = 0; i < rx_index; i++) {
 		toCode = (char) *(msg+i);
 		
