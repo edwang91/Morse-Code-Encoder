@@ -152,9 +152,9 @@
         <Bp>
           <Number>0</Number>
           <Type>0</Type>
-          <LineNumber>121</LineNumber>
+          <LineNumber>126</LineNumber>
           <EnabledFlag>1</EnabledFlag>
-          <Address>134226678</Address>
+          <Address>134226694</Address>
           <ByteObject>0</ByteObject>
           <HtxType>0</HtxType>
           <ManyObjects>0</ManyObjects>
@@ -163,7 +163,7 @@
           <BreakIfRCount>1</BreakIfRCount>
           <Filename>../Core/Src/main.c</Filename>
           <ExecCommand></ExecCommand>
-          <Expression>\\Morse_code\../Core/Src/main.c\121</Expression>
+          <Expression>\\Morse_code\../Core/Src/main.c\126</Expression>
         </Bp>
       </Breakpoint>
       <WatchWindow1>
@@ -171,6 +171,16 @@
           <count>0</count>
           <WinNumber>1</WinNumber>
           <ItemText>encode_flag</ItemText>
+        </Ww>
+        <Ww>
+          <count>1</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>rx_index</ItemText>
+        </Ww>
+        <Ww>
+          <count>2</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>bufferRx</ItemText>
         </Ww>
       </WatchWindow1>
       <Tracepoint>
